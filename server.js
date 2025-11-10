@@ -3,13 +3,9 @@ const axios = require("axios");
 const app = express();
 app.use(express.json());
 
-// 🔐 Clé API-Football dans les variables d'environnement Render
 const API_FOOTBALL_KEY = process.env.API_FOOTBALL_KEY;
+const PSG_TEAM_ID = 85; // ID PSG dans API-FOOTBALL
 
-// 🆔 ID équipe PSG dans API-Football (à adapter si besoin depuis leur doc/dashboard)
-const PSG_TEAM_ID = 85; // Vérifie dans ton compte API-Football que c'est bien l'ID du PSG
-
-// --- NEXT MATCH DYNAMIQUE ---
 app.get("/api/next_match", async (req, res) => {
   try {
     if (!API_FOOTBALL_KEY) {
@@ -23,7 +19,7 @@ app.get("/api/next_match", async (req, res) => {
       {
         params: {
           team: PSG_TEAM_ID,
-          next: 1
+          next: 10 // on récupère plusieurs matchs à venir
         },
         headers: {
           "x-apisports-key": API_FOOTBALL_KEY
@@ -31,14 +27,19 @@ app.get("/api/next_match", async (req, res) => {
       }
     );
 
-    const fixtures = response.data.response;
+    const fixtures = response.data?.response || [];
 
-    if (!fixtures || fixtures.length === 0) {
+    if (!fixtures.length) {
+      console.log("⚠️ Aucun match retourné par l'API:", JSON.stringify(response.data, null, 2));
       return res.status(404).json({
-        error: "Aucun match à venir trouvé pour le PSG."
+        error: "Aucun match à venir trouvé pour le PSG. Vérifie ton plan API ou les paramètres."
       });
     }
 
+    // On trie par date et on prend le match le plus proche dans le futur
+    fixtures.sort(
+      (a, b) => new Date(a.fixture.date) - new Date(b.fixture.date)
+    );
     const match = fixtures[0];
 
     const isHome = match.teams.home.id === PSG_TEAM_ID;
@@ -46,7 +47,7 @@ app.get("/api/next_match", async (req, res) => {
       ? match.teams.away.name
       : match.teams.home.name;
 
-    res.json({
+    return res.json({
       opponent,
       competition: match.league.name,
       date: match.fixture.date,
@@ -54,14 +55,14 @@ app.get("/api/next_match", async (req, res) => {
       home: isHome
     });
   } catch (err) {
-    console.error("Erreur API-Football:", err.response?.data || err.message);
-    res.status(500).json({
+    console.error("❌ Erreur API-Football:", err.response?.data || err.message);
+    return res.status(500).json({
       error: "Erreur lors de la récupération du prochain match."
     });
   }
 });
 
-// --- FEEDBACK SUPPORTER (inchangé, pour plus tard) ---
+// Feedback supporter (on garde)
 app.post("/api/feedback", (req, res) => {
   console.log("📥 Feedback reçu :", req.body);
   res.json({
@@ -70,7 +71,7 @@ app.post("/api/feedback", (req, res) => {
   });
 });
 
-// --- BILAN HEBDOMADAIRE D'EXEMPLE (tu pourras le rendre dynamique plus tard) ---
+// Bilan hebdo (exemple)
 app.get("/api/weekly_report", (req, res) => {
   res.json({
     week: "Semaine en cours",
@@ -86,5 +87,7 @@ app.get("/api/weekly_report", (req, res) => {
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () =>
   console.log(`✅ Serveur PSG Fan Intelligence en ligne sur le port ${PORT}`)
+);
+PSG Fan Intelligence en ligne sur le port ${PORT}`)
 );
 
