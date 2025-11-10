@@ -4,10 +4,10 @@ const axios = require("axios");
 const app = express();
 app.use(express.json());
 
-// Clé API récupérée depuis les variables d'environnement Render
+// Clé API depuis Render
 const API_FOOTBALL_KEY = process.env.API_FOOTBALL_KEY;
 
-// ID officiel du PSG dans API-FOOTBALL
+// ID PSG dans API-FOOTBALL
 const PSG_TEAM_ID = 85;
 
 // --------- ENDPOINT : PROCHAIN MATCH DU PSG ----------
@@ -19,12 +19,22 @@ app.get("/api/next_match", async (req, res) => {
       });
     }
 
+    // Dates from/to pour contourner l'interdiction de "next"
+    const today = new Date();
+    const in60Days = new Date();
+    in60Days.setDate(in60Days.getDate() + 60);
+
+    const from = today.toISOString().slice(0, 10);      // YYYY-MM-DD
+    const to = in60Days.toISOString().slice(0, 10);     // YYYY-MM-DD
+
     const response = await axios.get(
       "https://v3.football.api-sports.io/fixtures",
       {
         params: {
           team: PSG_TEAM_ID,
-          next: 10 // on récupère plusieurs matchs à venir
+          from,       // date de début
+          to          // date de fin
+          // tu peux ajouter "timezone: 'Europe/Paris'" si besoin
         },
         headers: {
           "x-apisports-key": API_FOOTBALL_KEY
@@ -38,19 +48,31 @@ app.get("/api/next_match", async (req, res) => {
 
     if (!fixtures.length) {
       console.log(
-        "⚠️ Aucun match retourné par l'API:",
+        "⚠️ Aucun match retourné par l'API (from/to):",
         JSON.stringify(response.data, null, 2)
       );
       return res.status(404).json({
-        error: "Aucun match à venir trouvé pour le PSG. Vérifie ton plan API ou les paramètres."
+        error: "Aucun match à venir trouvé pour le PSG dans la plage de dates."
       });
     }
 
-    // Trie par date et prend le match le plus proche
-    fixtures.sort(
+    // On garde uniquement les matchs dans le futur
+    const now = new Date();
+    const futureFixtures = fixtures.filter(f =>
+      new Date(f.fixture.date) >= now
+    );
+
+    if (!futureFixtures.length) {
+      return res.status(404).json({
+        error: "Aucun match futur trouvé pour le PSG."
+      });
+    }
+
+    // Trie par date et prend le plus proche
+    futureFixtures.sort(
       (a, b) => new Date(a.fixture.date) - new Date(b.fixture.date)
     );
-    const match = fixtures[0];
+    const match = futureFixtures[0];
 
     const isHome = match.teams.home.id === PSG_TEAM_ID;
     const opponent = isHome
