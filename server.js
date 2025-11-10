@@ -85,9 +85,7 @@ app.get("/api/weekly_report", (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () =>
-  console.log(`✅ Serveur PSG Fan Intelligence en ligne sur le port ${PORT}`)
-);
-PSG Fan Intelligence en ligne sur le port ${PORT}`)
-);
+app.listen(PORT, () => {
+  console.log(`✅ Serveur PSG Fan Intelligence en ligne sur le port ${PORT}`);
+});
 
