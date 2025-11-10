@@ -124,3 +124,74 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`✅ Serveur PSG Fan Intelligence en ligne sur le port ${PORT}`);
 });
+// --------- ENDPOINT : PROCHAIN MATCH DU PSG ----------
+app.get("/api/next_match", async (req, res) => {
+  try {
+    if (!API_FOOTBALL_KEY) {
+      return res.status(500).json({
+        error: "Clé API_FOOTBALL_KEY manquante côté serveur."
+      });
+    }
+
+    // Dates from/to
+    const today = new Date();
+    const in90Days = new Date();
+    in90Days.setDate(in90Days.getDate() + 90);
+
+    const from = today.toISOString().slice(0, 10);
+    const to = in90Days.toISOString().slice(0, 10);
+
+    // ⚙️ Ligue 1 = 61 (ID officiel API-FOOTBALL), Saison 2025
+    const LEAGUE_ID = 61;
+    const SEASON = 2025;
+
+    const response = await axios.get(
+      "https://v3.football.api-sports.io/fixtures",
+      {
+        params: {
+          team: PSG_TEAM_ID,
+          league: LEAGUE_ID,
+          season: SEASON,
+          from,
+          to
+        },
+        headers: {
+          "x-apisports-key": API_FOOTBALL_KEY
+        }
+      }
+    );
+
+    const fixtures = response.data?.response || [];
+
+    if (!fixtures.length) {
+      console.log("⚠️ Aucun match retourné par l'API:", response.data);
+      return res.status(404).json({
+        error: "Aucun match à venir trouvé pour le PSG (vérifie les dates ou la saison)."
+      });
+    }
+
+    // On trie et prend le plus proche
+    fixtures.sort(
+      (a, b) => new Date(a.fixture.date) - new Date(b.fixture.date)
+    );
+    const match = fixtures[0];
+
+    const isHome = match.teams.home.id === PSG_TEAM_ID;
+    const opponent = isHome
+      ? match.teams.away.name
+      : match.teams.home.name;
+
+    return res.json({
+      opponent,
+      competition: match.league.name,
+      date: match.fixture.date,
+      stadium: match.fixture.venue.name,
+      home: isHome
+    });
+  } catch (err) {
+    console.error("❌ Erreur API-Football:", err.response?.data || err.message);
+    return res.status(500).json({
+      error: "Erreur lors de la récupération du prochain match."
+    });
+  }
+});
